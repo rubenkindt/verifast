@@ -100,6 +100,7 @@ void append_to_log(struct log *log, struct socket *socket, struct string_buffer 
 }
 
 bool parse_string_buffer_as_decimal(struct string_buffer *buffer, int *intValue)
+//correct
 //@ requires [?f]string_buffer(buffer, ?cs) &*& *intValue |-> _;
 //@ ensures [f]string_buffer(buffer, cs) &*& *intValue |-> ?value &*& result ? 0 <= value : true;
 {
@@ -110,9 +111,11 @@ bool parse_string_buffer_as_decimal(struct string_buffer *buffer, int *intValue)
   int value = 0;
   bool result = true;
   for (; result && 0 < n; n--, p++)
+  //correct
   //@ requires [f]chars(p, n, ?ccs) &*& 0 <= value;
   //@ ensures [f]chars(old_p, old_n, ccs) &*& 0 <= value;
   {
+    //correct
     //@ chars_limits(p);
     //@ div_rem_nonneg(INT_MAX, 10);
     if (*p < '0' || '9' < *p || INT_MAX / 10 - (*p - '0') < value) {
@@ -121,6 +124,7 @@ bool parse_string_buffer_as_decimal(struct string_buffer *buffer, int *intValue)
       value = value * 10 + (*p - '0');
     }
   }
+  //correct
   //@ string_buffer_minus_chars_elim();
   *intValue = value;
   return result;
@@ -246,6 +250,7 @@ void follow_log(struct log *log, struct socket *socket, struct string_buffer *li
   {
     if (offset == logSize) {
       mutex_acquire(log->mutex);
+      //correct
       //@ assert mutex_held(?mutex, _, _, ?fm);
       for (;;)
       {
@@ -256,6 +261,7 @@ void follow_log(struct log *log, struct socket *socket, struct string_buffer *li
         mutex_cond_wait(log->append_cond, log->mutex);
       }
       mutex_release(log->mutex);
+      //correct
       //@ leak [fm]mutex(mutex, _);
     }
 
@@ -338,8 +344,10 @@ int main(int argc, char **argv)
 //@ ensures true;
 {
   struct log *logs = 0;
+  //correct
   //@ open argv(argv, argc, _);
   if (argc > 0) {
+    //correct
     //@ pointer_limits(argv);
     argv++;
     argc--;
@@ -359,6 +367,7 @@ int main(int argc, char **argv)
       newLog->append_cond = cond;
       logs = newLog;
       printf("Added log '%s' (current size: %d bytes)\n", name, logSize);
+      //correct
       //@ pointer_limits(argv);
     }
   }
