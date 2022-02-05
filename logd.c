@@ -13,6 +13,11 @@ struct log {
   int size;
 };
 
+/*@
+predicate logName(struct log *log, struct string_buffer *name) =
+log->name |-> ?n &*& string(n,_); // &*& log_name(log, n)
+@*/
+
 #ifndef SEEK_END
 #define SEEK_END 2
 #endif
@@ -44,16 +49,34 @@ struct connection {
 };
 
 struct log *lookup_log(struct log *logs, struct string_buffer *name)
+//@ requires logName(logs, name) &*& [_]string_buffer(name, _); // &*& logs->name |-> ?h &*& string(h, _);//logName(logs, ?n) &*& [_]string_buffer(name, _) &*& [_]string(n, _) ; //todo
+//@ ensures emp;// ensures true;//; //[_]string_buffer(name, _) &*& [_]string(n, _) &*& logName(logs, _); //todo
 {
   for (;;)
+  //@ invariant logName(logs, name) &*& [_]string_buffer(name, _);// &*& string(h, _);
   {
-    if (logs == 0)
+    if (logs == 0){
+      //@ leak logName(0, name);
       return 0;
+      }
+    // open string(h, _);
+    // open logName(logs, name);
     if (string_buffer_equals_string(name, logs->name))
+    // close logName(logs, name);
       return logs;
+    // close logName(logs, name);
+    // leak log_name(logs,_);
     logs = logs->next;
   }
+  //@ close logName(_,_);
+  //@ close logName(logs, name);
+  //@ leak logName(_,_);
+  //@ leak logName(logs, name);
+  
+  //@ close logName(0,name);
+  //@ leak logName(0,name);
 }
+
 
 void fwrite_string_buffer(FILE *file, struct string_buffer *buffer)
 {
@@ -284,8 +307,11 @@ clean_up:
   string_buffer_dispose(line);
 }
 
-void handle_connection(struct connection *connection)
+void handle_connection(struct connection *connection)//@ : thread_run
+//@ requires thread_run_data(handle_connection)(connection);
+//@ ensures true; //todo
 {
+  //@ open thread_run_data(handle_connection)(connection);
   struct log *logs = connection->logs;
   struct socket *socket = connection->socket;
   free(connection);
@@ -299,11 +325,12 @@ void handle_connection(struct connection *connection)
     string_buffer_dispose(line);
     return;
   }
-
+  
   char *logName = string_buffer_get_string(line);
   printf("Received log filename '%s'.\n", logName);
   free(logName);
 
+  //@ open logName(logs, line);
   struct log *log = lookup_log(logs, line);
   if (log == 0) {
     socket_write_string(socket, "No such log\n");
@@ -338,6 +365,15 @@ void handle_connection(struct connection *connection)
   }
 }
 
+
+/*@
+predicate_family_instance thread_run_data(handle_connection)(struct connection *conn) =
+  conn->logs |-> ?logs &*& conn->socket |-> ?sock &*& malloc_block_connection(conn) &*& 
+  socket_input_stream(sock) &*& socket_output_stream(sock) &*& logName(logs,_); // &*& 
+   //&*&
+  //[1/2]counter->mutex |-> ?mutex &*& [1/3]mutex(mutex, counter(counter));
+@*/
+
 int main(int argc, char **argv)
 //corect
 //@ requires 0 <= argc &*& [_]argv(argv, argc, _);
@@ -352,7 +388,7 @@ int main(int argc, char **argv)
     argv++;
     argc--;
     for (; argc > 0; argc--, argv++)
-    //@ invariant [_]argv(argv, argc, _); // TODO: Extend this invariant.
+    //@ invariant [_]argv(argv, argc, _) &*& pointer_limits(argv); // TODO: Extend this invariant.
     {
       char *name = *argv;
       struct log *newLog = malloc(sizeof(struct log));
@@ -379,6 +415,7 @@ int main(int argc, char **argv)
   }
 
   for (;;)
+  //@ invariant server_socket(serverSocket);
   {
     struct socket *socket = server_socket_accept(serverSocket);
     if (socket == 0) {
@@ -389,6 +426,7 @@ int main(int argc, char **argv)
     if (connection == 0) abort();
     connection->logs = logs;
     connection->socket = socket;
+    //@ close thread_run_data(handle_connection)(connection);
     thread_start(handle_connection, connection);
   }
 }
