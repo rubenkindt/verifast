@@ -1,0 +1,15 @@
+.predicate @./stringBuffers.h#string_buffer
+.predicate @./stringBuffers.h#string_buffer_minus_chars
+.provides ./stringBuffers.h#create_string_buffer
+.provides ./stringBuffers.h#string_buffer_append_string
+.provides ./stringBuffers.h#string_buffer_append_string_buffer
+.provides ./stringBuffers.h#string_buffer_copy
+.provides ./stringBuffers.h#string_buffer_dispose
+.provides ./stringBuffers.h#string_buffer_get_chars
+.provides ./stringBuffers.h#string_buffer_get_length
+.provides ./stringBuffers.h#string_buffer_minus_chars_elim
+.provides ./stringBuffers.h#string_buffer_to_string
+.provides ./stringBuffers.h#string_buffer_append_char
+.provides ./stringBuffers.h#string_buffer_clear
+.provides ./stringBuffers.h#string_buffer_equals_string
+.provides ./stringBuffers.h#string_buffer_get_string
