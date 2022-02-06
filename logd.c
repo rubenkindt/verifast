@@ -204,13 +204,21 @@ int min(int x, int y)
 #endif
 
 void list_log(struct log *log, struct socket *socket, struct string_buffer *line)
+/*@ requires [?l]logs_pre(log,?next) &*& socket_input_stream(socket) &*& 
+   socket_output_stream(socket) &*& string_buffer(line, _);
+@*/
+//@ ensures true; //todo
 {
   int offset;
   int maxNbBytes;
-
+  
+  //@ open [?p]logs_pre(log,next);
+  //@ open [?m]log_mutex_pre(log,?iets);
   mutex_acquire(log->mutex);
   int logSize = log->size;
   mutex_release(log->mutex);
+  //@ close [m]log_mutex_pre(log,?iets);
+  //@ open [p]logs_pre(log,next);
 
   printf("LIST: Current size of the log: %d bytes.\n", logSize);
 
