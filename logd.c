@@ -18,6 +18,22 @@ predicate logs_pre(struct log *log, struct log *next) =
   log->name |-> ?n &*& string(n,_) &*& log->next |-> next &*&
    log->mutex |-> ?mutex &*& logs_pre(next, _) &*& log_mutex_pre(log,_);
     // &*& string(n,_) &*& log_name(log, n)
+@*/
+/*@
+ predicate_ctor log_mal_pre(struct log *log)() =
+  log->name |-> ?name &*& log->next |-> ?next &*& log->size |-> ?size
+  &*& malloc_block_log(log);// &*& log->append_cond |-> ?append_cond &*& log->mutex |-> ?mutex
+  
+    // &*& string(n,_) &*& log_name(log, n)
+
+@*/
+
+/*@
+ predicate_ctor log_con_pre(struct log *log)() =
+  log->name |-> ?name &*& log->next |-> ?next &*& log->size |-> ?size
+  &*& malloc_block_log(log);// &*& log->append_cond |-> ?append_cond &*& log->mutex |-> ?mutex
+  
+    // &*& string(n,_) &*& log_name(log, n)
 
 @*/
 
@@ -32,6 +48,8 @@ predicate logs_pre2(struct log *log, struct string_buffer *name) =
 #endif
 
 int get_file_size(char *name)
+//@ requires [?fi]string(name, ?fcs);
+//@ ensures [fi]string(name, fcs);
 {
   FILE *f = fopen(name, "rb");
   if (f == 0) {
@@ -58,18 +76,20 @@ struct connection {
 };
 
 struct log *lookup_log(struct log *logs, struct string_buffer *name)
-//@ requires [?b]string_buffer(name, _) &*& [?l]logs_pre(logs,?next);
-//@ ensures [b]string_buffer(name, _) &*& [l]logs_pre(result,_);
+//@ requires [?b]string_buffer(name, _) &*& logs->name |-> ?str &*& string(str,_);// &*& [?l]logs_pre(logs,?next);
+//@ ensures [b]string_buffer(name, _) ;//&*& [l]logs_pre(result,_);
 {
   for (;;)
-  /*@ invariant  [b]string_buffer(name, _) &*& [l]logs_pre(logs,_) ;
+  /*@ invariant  [b]string_buffer(name, _) &*& logs->name |-> _ &*& string(str,_);//&*& [l]logs_pre(logs,_) ;
          //&*& logs == 0 ? true: logs_pre(logs, name) &*& logs->next |-> ?next &*& logs_pre(next, name);
   @*/
   {
-    if (logs == 0)
-      return 0;
+    if (logs == 0){
+    //@ leak log_name(logs, _);
+    //@ leak string(str,_);
+      return 0;}
     
-    //@ open logs_pre(logs, ?n);
+    // @ open logs_pre(logs, ?n);
     if (string_buffer_equals_string(name, logs->name)){ //todo
       //@ close [l]logs_pre(logs, n);
       return logs;}
@@ -389,7 +409,8 @@ void handle_connection(struct connection *connection)//@ : thread_run
     printf("Error while reading the log filename. Terminating the connection...\n");
     socket_close(socket);
     string_buffer_dispose(line);
-    //@ leak logs_pre(logs,_);
+    // @ leak logs_pre(logs,_);
+    //@ leak log_name(logs, _);
     return;
   }
   
@@ -445,9 +466,10 @@ void handle_connection(struct connection *connection)//@ : thread_run
 
 /*@
 predicate_family_instance thread_run_data(handle_connection)(struct connection *conn) =
-  conn->logs |-> ?logs &*& conn->socket |-> ?sock &*& malloc_block_connection(conn) &*& 
-  socket_input_stream(sock) &*& socket_output_stream(sock) &*& logs_pre(logs,_); // &*& 
-   //&*&
+  conn->logs |-> ?logs &*& logs->name |-> _ &*& conn->socket |-> ?sock &*& malloc_block_connection(conn) &*& 
+  socket_input_stream(sock) &*& socket_output_stream(sock) ;//&*& logs==0 ? logs_pre(0, _) : logs_pre(logs,_);
+  // &*& 
+  //&*&
   //[1/2]counter->mutex |-> ?mutex &*& [1/3]mutex(mutex, counter(counter));
 @*/
 
@@ -456,6 +478,7 @@ int main(int argc, char **argv)
 //@ requires 0 <= argc &*& [_]argv(argv, argc, _);
 //@ ensures true;
 {
+  ///@ assume (1 == argc); //todo rm
   struct log *logs = 0;
   //correct
   //@ open argv(argv, argc, _);
@@ -465,7 +488,7 @@ int main(int argc, char **argv)
     argv++;
     argc--;
     for (; argc > 0; argc--, argv++)
-    //@ invariant [_]argv(argv, argc, _) &*& pointer_limits(argv); // TODO: Extend this invariant.
+    //@ invariant [_]argv(argv, argc, _) ;//&*& pointer_limits(argv); // TODO: Extend this invariant.
     {
       char *name = *argv;
       struct log *newLog = malloc(sizeof(struct log));
@@ -474,14 +497,20 @@ int main(int argc, char **argv)
       newLog->name = name;
       int logSize = get_file_size(name);
       newLog->size = logSize;
+      //@ close log_mal_pre(newLog)(); 
+      //@ close create_mutex_ghost_arg(log_mal_pre(newLog));
       struct mutex *mutex = create_mutex();
       newLog->mutex = mutex;
+      //@ leak newLog->mutex |-> mutex &*& mutex(mutex,_);
+      //@ close create_mutex_cond_ghost_args(newLog->mutex);
       struct mutex_cond *cond = create_mutex_cond();
       newLog->append_cond = cond;
+      //@ leak newLog->append_cond |-> cond &*& mutex_cond(cond,_);
       logs = newLog;
       printf("Added log '%s' (current size: %d bytes)\n", name, logSize);
       //correct
       //@ pointer_limits(argv);
+      // prob close log
     }
   }
 
