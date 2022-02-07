@@ -195,6 +195,8 @@ bool parse_string_buffer_as_decimal(struct string_buffer *buffer, int *intValue)
 }
 
 int min(int x, int y)
+//@ requires true;
+//@ ensures x<y? result==x: result==y;
 {
   return x < y ? x : y;
 }
@@ -207,7 +209,7 @@ void list_log(struct log *log, struct socket *socket, struct string_buffer *line
 /*@ requires [?l]logs_pre(log,?next) &*& socket_input_stream(socket) &*& 
    socket_output_stream(socket) &*& string_buffer(line, _);
 @*/
-//@ ensures true; //todo
+//@ ensures true;//[l]logs_pre(log,next); //todo
 {
   int offset;
   int maxNbBytes;
@@ -216,9 +218,11 @@ void list_log(struct log *log, struct socket *socket, struct string_buffer *line
   //@ open [?m]log_mutex_pre(log,?iets);
   mutex_acquire(log->mutex);
   int logSize = log->size;
+
   mutex_release(log->mutex);
-  //@ close [m]log_mutex_pre(log,?iets);
-  //@ open [p]logs_pre(log,next);
+  //@ close [m]log_mutex_pre(log,iets);
+  //@ close [p]logs_pre(log,next);
+
 
   printf("LIST: Current size of the log: %d bytes.\n", logSize);
 
@@ -252,7 +256,9 @@ void list_log(struct log *log, struct socket *socket, struct string_buffer *line
   printf("LIST: Transferring %d bytes (= the minimum of %d (the log size %d - offset %d) and the specified maximum number of bytes to transfer %d)...\n", nbBytesToRead, logSize - offset, logSize, offset, maxNbBytes);
 
   printf("LIST: Opening the log...\n");
+  //@ open [?g]logs_pre(log,next);
   FILE *f = fopen(log->name, "rb");
+  //@ close [g]logs_pre(log,next);
   if (f == 0) {
     printf("LIST: An error occurred while opening the log file. Terminating the connection...\n");
     goto clean_up;
@@ -261,6 +267,7 @@ void list_log(struct log *log, struct socket *socket, struct string_buffer *line
   fseek(f, offset, SEEK_SET);
   char buffer[1000];
   while (0 < nbBytesToRead)
+  //@ invariant chars(buffer, 1000, ?cs) &*& file(f) &*& socket_output_stream(socket);
   {
     int nbBytesToReadNow = min(nbBytesToRead, 1000);
     printf("LIST: Trying to read %d bytes.\n", nbBytesToReadNow);
@@ -281,6 +288,7 @@ void list_log(struct log *log, struct socket *socket, struct string_buffer *line
 clean_up:
   socket_close(socket);
   string_buffer_dispose(line);
+  //@ leak [l]logs_pre(log,next);
 }
 
 void follow_log(struct log *log, struct socket *socket, struct string_buffer *line)
@@ -410,6 +418,7 @@ void handle_connection(struct connection *connection)//@ : thread_run
     append_to_log(log, socket, line);
   else if (string_buffer_equals_string(line, "LIST"))
     list_log(log, socket, line);
+    // leak logs_pre(log,_);
   else if (string_buffer_equals_string(line, "FOLLOW"))
     follow_log(log, socket, line);
   else {
@@ -418,7 +427,7 @@ void handle_connection(struct connection *connection)//@ : thread_run
     socket_close(socket);
     string_buffer_dispose(line);
   }
-  // waarsch //@ leak log_pre(logs,_); s
+  // leak logs_pre(log,_);
 }
 
 
