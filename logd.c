@@ -1,3 +1,4 @@
+// anntotated by Ruben Kindt for the module verifast in the course Capita selecta van de software engineering (B-KUL-G0L15B)
 #include <limits.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -17,22 +18,17 @@ struct log {
 predicate_family_instance thread_run_data(handle_connection)(struct connection *conn) =
   conn->logs |-> ?logs &*& conn->socket |-> ?sock &*& malloc_block_connection(conn) &*& 
   socket_input_stream(sock) &*& socket_output_stream(sock) &*& [?l]logs(logs, ?depth);
-@*/
 
-/*@
  predicate_ctor log_mal_pre(struct log *log)() =  log_size(log, ?size) &*& size<= INT_MAX &*& size>=0;
-@*/
 
-/*@
 predicate logs(struct log *log, int depth) =
   log == 0 ?
    depth == 0
   :
-   log->name |-> ?str &*& [_]string(str,_) &*& log->next |-> ?next //&*& log->size |-> ?size &*&  
+   log->name |-> ?str &*& [_]string(str,_) &*& log->next |-> ?next
    &*& malloc_block_log(log) &*& logs(next, depth - 1) &*& log!=0
    &*& log->mutex |-> ?mutex &*& log->append_cond |-> ?append_cond
    &*& mutex(mutex,log_mal_pre(log)) &*& mutex_cond(append_cond,mutex);
-   //&*& mutex(mutex,_) &*& log->append_cond |-> ?append_cond &*& mutex_cond(append_cond,mutex);
 @*/
 
 #ifndef SEEK_END
@@ -74,8 +70,8 @@ struct log *lookup_log(struct log *logs, struct string_buffer *name)
   for (;;)
   //@ invariant  [b]string_buffer(name, _) &*& [l]logs(logs, _) ;
   {
-    if (logs == 0){ //todo
-      return 0;}
+    if (logs == 0)
+      return 0;
     //@ open [l]logs(logs, ?depth2);
     if (string_buffer_equals_string(name, logs->name)){ //todo
       //@ close [l]logs(logs, depth2);
@@ -107,14 +103,14 @@ void fwrite_string_buffer(FILE *file, struct string_buffer *buffer)
 
 void append_to_log(struct log *log, struct socket *socket, struct string_buffer *line)
 /*@
- requires socket_input_stream(socket) &*& socket_output_stream(socket) &*& string_buffer(line, _)
-   &*& log!=0 &*& [?l]logs(log, ?depth) ;
+ requires socket_input_stream(socket) &*& socket_output_stream(socket) 
+   &*& string_buffer(line, _) &*& log!=0 &*& [?l]logs(log, ?depth) ;
 @*/
 //@ensures true;
 {
   for (;;)
-  /*@ invariant socket_input_stream(socket) &*& socket_output_stream(socket) &*& string_buffer(line, _)
-       &*& [l]logs(log, depth);
+  /*@ invariant socket_input_stream(socket) &*& socket_output_stream(socket) 
+       &*& string_buffer(line, _) &*& [l]logs(log, depth);
   @*/
   {
     socket_write_string(socket, "OK\n");
@@ -162,9 +158,8 @@ void append_to_log(struct log *log, struct socket *socket, struct string_buffer 
 }
 
 bool parse_string_buffer_as_decimal(struct string_buffer *buffer, int *intValue)
-//correct
-//@ requires [?f]string_buffer(buffer, ?cs) &*& *intValue |-> _;
-//@ ensures [f]string_buffer(buffer, cs) &*& *intValue |-> ?value &*& result ? 0 <= value : true;
+//@ requires [?f]string_buffer(buffer, ?cs) &*& *intValue |-> _;//given
+//@ ensures [f]string_buffer(buffer, cs) &*& *intValue |-> ?value &*& result ? 0 <= value : true;//given
 {
   int n = string_buffer_get_length(buffer);
   if (n == 0)
@@ -173,21 +168,18 @@ bool parse_string_buffer_as_decimal(struct string_buffer *buffer, int *intValue)
   int value = 0;
   bool result = true;
   for (; result && 0 < n; n--, p++)
-  //correct
-  //@ requires [f]chars(p, n, ?ccs) &*& 0 <= value;
-  //@ ensures [f]chars(old_p, old_n, ccs) &*& 0 <= value;
+  //@ requires [f]chars(p, n, ?ccs) &*& 0 <= value;//given
+  //@ ensures [f]chars(old_p, old_n, ccs) &*& 0 <= value;//given
   {
-    //correct
-    //@ chars_limits(p);
-    //@ div_rem_nonneg(INT_MAX, 10);
+    //@ chars_limits(p);//given
+    //@ div_rem_nonneg(INT_MAX, 10);//given
     if (*p < '0' || '9' < *p || INT_MAX / 10 - (*p - '0') < value) {
       result = false;
     } else {
       value = value * 10 + (*p - '0');
     }
   }
-  //correct
-  //@ string_buffer_minus_chars_elim();
+  //@ string_buffer_minus_chars_elim();//given
   *intValue = value;
   return result;
 }
@@ -196,8 +188,6 @@ int min(int x, int y)
 //@ requires true;
 //@ ensures x<y? result==x: result==y;
 {
-  // @ produce_limits(x);
-  // @ produce_limits(y);
   return x < y ? x : y;
 }
 
@@ -209,7 +199,7 @@ void list_log(struct log *log, struct socket *socket, struct string_buffer *line
 /*@ requires log!=0 &*& socket_input_stream(socket) &*& 
    socket_output_stream(socket) &*& string_buffer(line, _) &*& [?l]logs(log, ?depth);
 @*/
-//@ ensures true; //todo ?
+//@ ensures true;
 {
   int offset;
   int maxNbBytes;
@@ -347,10 +337,9 @@ void follow_log(struct log *log, struct socket *socket, struct string_buffer *li
       mutex_acquire(log->mutex);
       //@ open log_mal_pre(log)();
   
-      //correct
-      //@ assert mutex_held(?mutex, _, _, ?fm);
+      //@ assert mutex_held(?mutex, _, _, ?fm);//given
       for (;;)
-      /*@ invariant log_size(log,?size) &*& mutex_held(mutex, _, _, fm);//mutex_held(mutex, ?size, _, fm);
+      /*@ invariant log_size(log,?size) &*& mutex_held(mutex, _, _, fm);
       @*/;
       {
         logSize = log->size;
@@ -362,13 +351,8 @@ void follow_log(struct log *log, struct socket *socket, struct string_buffer *li
       //@ close log_mal_pre(log)();
       mutex_release(log->mutex);
       //@ close logs(log, depth);
-      
-      //correct
-      //@ leak [fm]mutex(mutex, _);
-      
+      //@ leak [fm]mutex(mutex, _);//given
     }
-    // @ leak [fmu]mutex(muttex, mCond);
-
     int nbBytesToReadNow = min(logSize - offset, 1000);
     printf("FOLLOW: Trying to read %d bytes...\n", nbBytesToReadNow);
     int nbBytesRead = fread(buffer, 1, nbBytesToReadNow, f);
@@ -455,24 +439,19 @@ void handle_connection(struct connection *connection)//@ : thread_run
 }
 
 int main(int argc, char **argv)
-//corect
-//@ requires 0 <= argc &*& [_]argv(argv, argc, _);
-//@ ensures true;
+//@ requires 0 <= argc &*& [_]argv(argv, argc, _);//given
+//@ ensures true;//given
 {
-  ///@ assume (1 == argc); //todo rm
   struct log *logs = 0;
   //@ close logs(logs, 0);
   
-  //correct
-  //@ open argv(argv, argc, _);
+  //@ open argv(argv, argc, _);//given
   if (argc > 0) {
-    //correct
-    //@ pointer_limits(argv);
+    //@ pointer_limits(argv);//given
     argv++;
     argc--;
     for (; argc > 0; argc--, argv++)
     /*@ invariant [_]argv(argv, argc, _) &*& logs(logs, ?depth);
-       // TODO: Extend this invariant.
     @*/
     {
       char *name = *argv;
@@ -487,16 +466,12 @@ int main(int argc, char **argv)
       //@ close create_mutex_ghost_arg(log_mal_pre(newLog));
       struct mutex *mutex = create_mutex();
       newLog->mutex = mutex;
-      // @ leak newLog->mutex |-> mutex &*& mutex(mutex,_);
       //@ close create_mutex_cond_ghost_args(newLog->mutex);
       struct mutex_cond *cond = create_mutex_cond();
-      newLog->append_cond = cond;
-      // @ leak newLog->append_cond |-> cond &*& mutex_cond(cond,_);
+      newLog->append_cond = cond;    
       logs = newLog;
       printf("Added log '%s' (current size: %d bytes)\n", name, logSize);
-      //correct
-      //@ pointer_limits(argv);
-      
+      //@ pointer_limits(argv); //given
       //@ close logs(newLog, depth + 1);
     }
   }
@@ -524,7 +499,5 @@ int main(int argc, char **argv)
     connection->socket = socket;
     //@ close thread_run_data(handle_connection)(connection);
     thread_start(handle_connection, connection);
-    // @ close logs(logs, 0);
-    // @ leak [_]logs(logs,0);
   }
 }
