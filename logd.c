@@ -1,4 +1,4 @@
-// anntotated by Ruben Kindt for the module verifast in the course Capita selecta van de software engineering (B-KUL-G0L15B)
+// annotated by Ruben Kindt for the module verifast in the course Capita selecta van de software engineering (B-KUL-G0L15B)
 #include <limits.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -68,15 +68,16 @@ struct log *lookup_log(struct log *logs, struct string_buffer *name)
 //@ ensures [b]string_buffer(name, _)   &*& [l]logs(result, _) ;
 {
   for (;;)
-  //@ invariant  [b]string_buffer(name, _) &*& [l]logs(logs, _) ;
+  //@ invariant [b]string_buffer(name, _) &*& [l]logs(logs,_);
   {
     if (logs == 0)
       return 0;
     //@ open [l]logs(logs, ?depth2);
-    if (string_buffer_equals_string(name, logs->name)){ //todo
+    if (string_buffer_equals_string(name, logs->name))
+    { //added
       //@ close [l]logs(logs, depth2);
-      return logs;}
-    
+      return logs;
+    }
     //@ leak [l]log_mutex(logs, ?mut);
     //@ leak [l]log_append_cond(logs, ?append_cond);  
     //@ leak [l]mutex(mut, _);
@@ -144,8 +145,7 @@ void append_to_log(struct log *log, struct socket *socket, struct string_buffer 
     int lineLength = string_buffer_get_length(line);
     if (INT_MAX - lineLength - 1 < log->size)
         abort();
-        
-    //@ produce_limits(lineLength);
+    
     int newSize = log->size + lineLength + 1;
     log->size = newSize;
     //@ close log_mal_pre(log)();
@@ -284,7 +284,7 @@ void follow_log(struct log *log, struct socket *socket, struct string_buffer *li
       &*& log!=0 &*& socket_output_stream(socket) &*& string_buffer(line, _);
 @*/
 //@ ensures true;
-{  
+{
   //@ open [l]logs(log, depth);
   mutex_acquire(log->mutex);
   //@ open log_mal_pre(log)();
@@ -361,18 +361,18 @@ void follow_log(struct log *log, struct socket *socket, struct string_buffer *li
       printf("FOLLOW: Failed to read any bytes. Terminating the connection...\n");
       break;
     }
-    
+
     socket_write_chars(socket, buffer, nbBytesRead);
     printf("FOLLOW: Transferred %d bytes.\n", nbBytesRead);
     offset += nbBytesRead;
   }
-  
+
   fclose(f);
   //@ leak [l]logs(log, depth);
 clean_up:
   socket_close(socket);
   string_buffer_dispose(line);
- 
+
 }
 
 void handle_connection(struct connection *connection)//@ : thread_run
@@ -394,13 +394,13 @@ void handle_connection(struct connection *connection)//@ : thread_run
     //@leak [_]logs(logs, ?depth);
     return;
   }
-  
+
   char *logName = string_buffer_get_string(line);
   printf("Received log filename '%s'.\n", logName);
   free(logName);
 
   struct log *log = lookup_log(logs, line);
-  
+
   if (log == 0) {
     socket_write_string(socket, "No such log\n");
     printf("No such log. Terminating the connection...\n");
@@ -412,7 +412,6 @@ void handle_connection(struct connection *connection)//@ : thread_run
     socket_write_string(socket, "OK\n");
   }
 
-  
   printf("Waiting to receive the command...\n");
 
   if (socket_read_line(socket, line)) {
@@ -422,7 +421,7 @@ void handle_connection(struct connection *connection)//@ : thread_run
     //@ leak [_]logs(log, ?depth);
     return;
   }
-  
+
   if (string_buffer_equals_string(line, "APPEND"))
     append_to_log(log, socket, line);
   else if (string_buffer_equals_string(line, "LIST"))
@@ -461,7 +460,7 @@ int main(int argc, char **argv)
       newLog->name = name;
       int logSize = get_file_size(name);
       newLog->size = logSize;
-      
+
       //@ close log_mal_pre(newLog)(); 
       //@ close create_mutex_ghost_arg(log_mal_pre(newLog));
       struct mutex *mutex = create_mutex();
