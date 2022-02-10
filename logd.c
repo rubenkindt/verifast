@@ -14,37 +14,25 @@ struct log {
 };
 
 /*@
-predicate logs_pre(struct log *log, struct log *next) =
-  log->name |-> ?n &*& string(n,_) &*& log->next |-> next &*&
-   log->mutex |-> ?mutex &*& logs_pre(next, _) &*& log_mutex_pre(log,_);
-    // &*& string(n,_) &*& log_name(log, n)
-@*/
-/*@
- predicate_ctor log_mal_pre(struct log *log)() =
-  log->name |-> ?name &*& log->next |-> ?next &*& log->size |-> ?size
-  &*& malloc_block_log(log);// &*& log->append_cond |-> ?append_cond &*& log->mutex |-> ?mutex
-  
-    // &*& string(n,_) &*& log_name(log, n)
-
+predicate_family_instance thread_run_data(handle_connection)(struct connection *conn) =
+  conn->logs |-> ?logs &*& conn->socket |-> ?sock &*& malloc_block_connection(conn) &*& 
+  socket_input_stream(sock) &*& socket_output_stream(sock) &*& [?l]logs(logs, ?depth);
 @*/
 
 /*@
- predicate_ctor log_con_pre(struct log *log)() =
-  log->name |-> ?name &*& log->next |-> ?next &*& log->size |-> ?size
-  &*& malloc_block_log(log);// &*& log->append_cond |-> ?append_cond &*& log->mutex |-> ?mutex
-  
-    // &*& string(n,_) &*& log_name(log, n)
-@*/
-/*@
-predicate logs(struct log *log) =
-  log->name |-> ?str &*& string(str,_) &*& log->next |-> ?next &*& log->size |-> ?size &*& size<= INT_MAX &*& log->mutex |-> ?mutex &*&
-  mutex(mutex,_) &*& log->append_cond |-> ?append_cond &*& mutex_cond(append_cond,mutex) &*& logs(next);
+ predicate_ctor log_mal_pre(struct log *log)() =  log_size(log, ?size) &*& size<= INT_MAX &*& size>=0;
 @*/
 
 /*@
-predicate logs_pre2(struct log *log, struct string_buffer *name) =
-  log->name |-> ?n &*& string(n,_) &*& log->next |-> ?next &*&
-   logs_pre2(next, name) &*& log_mutex_pre(log,_); // &*& log_name(log, n)
+predicate logs(struct log *log, int depth) =
+  log == 0 ?
+   depth == 0
+  :
+   log->name |-> ?str &*& [_]string(str,_) &*& log->next |-> ?next //&*& log->size |-> ?size &*&  
+   &*& malloc_block_log(log) &*& logs(next, depth - 1) &*& log!=0
+   &*& log->mutex |-> ?mutex &*& log->append_cond |-> ?append_cond
+   &*& mutex(mutex,log_mal_pre(log)) &*& mutex_cond(append_cond,mutex);
+   //&*& mutex(mutex,_) &*& log->append_cond |-> ?append_cond &*& mutex_cond(append_cond,mutex);
 @*/
 
 #ifndef SEEK_END
@@ -80,97 +68,67 @@ struct connection {
 };
 
 struct log *lookup_log(struct log *logs, struct string_buffer *name)
-//@ requires [?b]string_buffer(name, _) &*& logs(logs);// &*& logs->name |-> ?str;// &*& string(str,?iets) &*& logs->next |-> ?next;// &*& [?l]logs_pre(logs,?next);
-//@ ensures [b]string_buffer(name, _) &*& logs(result);//&*& [l]logs_pre(result,_);
+//@ requires [?b]string_buffer(name, _) &*& [?l]logs(logs, ?depth) ;
+//@ ensures [b]string_buffer(name, _)   &*& [l]logs(result, _) ;
 {
   for (;;)
-  /*@ invariant  [b]string_buffer(name, _) &*& logs(logs) 
-        ;//&*& next->name |-> ?nname;
-        
-      //&*& [l]logs_pre(logs,_) ;
-         //&*& logs == 0 ? true: logs_pre(logs, name) &*& logs->next |-> ?next &*& logs_pre(next, name);
-  @*/
+  //@ invariant  [b]string_buffer(name, _) &*& [l]logs(logs, _) ;
   {
-    if (logs == 0){
-    // @ leak log_name(logs, str);
-    // @ leak string(str,iets);
-    // @ leak log_next(logs,_);
+    if (logs == 0){ //todo
       return 0;}
-    
-    //@ open logs(logs);
+    //@ open [l]logs(logs, ?depth2);
     if (string_buffer_equals_string(name, logs->name)){ //todo
-      // @ leak log_name(logs, str); // /@ close [l]logs_pre(logs, n);
-      // @ leak log_next(logs, _);
-      // @ leak string(str, iets);
-      //@ close logs(logs);
+      //@ close [l]logs(logs, depth2);
       return logs;}
-    ///@ close [l]logs_pre(logs, n);
-          
-    ///@ open [_]logs_pre(logs, ?nnext);
-    //@ leak log_name(logs,?str);
-    //@ leak string(str,_);
-    //@ leak log_next(logs, _);
-    //@ leak log_mutex(logs, ?mut);
-    //@ leak mutex(mut, _);
-    //@ leak log_size(logs, _);
-    //@ leak log_append_cond(logs, ?appc);
-    //@ leak mutex_cond(appc,_);
     
-    
-    
-    // @ leak [l]string(nkl,_);
-    
+    //@ leak [l]log_mutex(logs, ?mut);
+    //@ leak [l]log_append_cond(logs, ?append_cond);  
+    //@ leak [l]mutex(mut, _);
+    //@ leak [l]mutex_cond(append_cond, mut);
+  
+    //@ leak [l]log_name(logs,?str);
+    //@ leak [_]string(str,_);
+    //@ leak [l]log_next(logs, ?next);
+    //@ leak [l]malloc_block_log(logs);
     logs = logs->next;
-    ///@ leak [_]log_next(llogs,_);
-    ///@ close logs(logs);
   }
 }
 
 
 void fwrite_string_buffer(FILE *file, struct string_buffer *buffer)
 //@ requires [?b]string_buffer(buffer, _) &*& [?fil]file(file);
-//@ ensures  [b]string_buffer(buffer, _) &*& [fil]file(file); //todo check if terug geven of leak beter is, deze zou goed moeten zijn 
+//@ ensures  [b]string_buffer(buffer, _) &*& [fil]file(file);
 {
   int bufferLength = string_buffer_get_length(buffer);
   char *bufferChars = string_buffer_get_chars(buffer);
   fwrite(bufferChars, 1, bufferLength, file);
   //@ string_buffer_minus_chars_elim();
-  ///@ leak [1/2]chars(_,_,_);
-  ///@ leak [1/2]string_buffer_minus_chars(_,_,_);
 }
 
-/*@
-predicate log_mutex_pre(struct log *log, struct mutex *mutex) =
-  log->mutex |-> ?m &*& mutex(m, ?p) &*& log->name |-> ?n &*& string(n, _) &*& 
-  log->size |-> ?size &*& log->append_cond |-> ?append_cond &*& mutex_cond(append_cond, m); // &*& log_name(log, n)
-@*/
-
-void append_to_log(struct log *log, struct socket *socket, struct string_buffer *line) //todo mogelijks moeten hier meer[iets of_] bij
+void append_to_log(struct log *log, struct socket *socket, struct string_buffer *line)
 /*@
  requires socket_input_stream(socket) &*& socket_output_stream(socket) &*& string_buffer(line, _)
-   &*& logs(log);// &*& log_mutex_pre(log,_);// &*& log->mutex |-> ?mutex;
+   &*& log!=0 &*& [?l]logs(log, ?depth) ;
 @*/
 //@ensures true;
 {
   for (;;)
   /*@ invariant socket_input_stream(socket) &*& socket_output_stream(socket) &*& string_buffer(line, _)
-       &*& logs(log) ;// &*& log_mutex_pre(log,_);
+       &*& [l]logs(log, depth);
   @*/
   {
-    ///@ close socket_output_stream(socket);
     socket_write_string(socket, "OK\n");
     printf("APPEND: Waiting for next line to append...\n");
     if (socket_read_line(socket, line)) {
       printf("APPEND: Error while reading line. Terminating the connection...\n");
       socket_close(socket);
       string_buffer_dispose(line);
-      //@ leak logs(log);
-      ///@ leak log_mutex_pre(_,_);
+      //@ leak [l]logs(log, depth);
       return;
     }
     printf("APPEND: Appending the line.\n");
-    //@ open logs(log);
-    // @ open log_mutex_pre(log,_);// log->mutex);
+    
+    //@ open [l]logs(log, depth);
     mutex_acquire(log->mutex);
     FILE *f = fopen(log->name, "ab");
     if (f == 0) {
@@ -179,26 +137,28 @@ void append_to_log(struct log *log, struct socket *socket, struct string_buffer 
       socket_close(socket);
       string_buffer_dispose(line);
       printf("APPEND: Could not open log file '%s'. Terminating the connection...\n", log->name);
-      
-      //@ close logs(log);
-      //@leak logs(log); 
+      //@ close [l]logs(log, depth);
+      //@ leak [l]logs(log, depth); 
       return;
     }
+    //@ open log_mal_pre(log)();
     fwrite_string_buffer(f, line);
     fputs("\n", f);
     fclose(f);
     int lineLength = string_buffer_get_length(line);
     if (INT_MAX - lineLength - 1 < log->size)
         abort();
+        
+    //@ produce_limits(lineLength);
     int newSize = log->size + lineLength + 1;
     log->size = newSize;
+    //@ close log_mal_pre(log)();
     mutex_cond_signal(log->append_cond);
     mutex_release(log->mutex);
     printf("APPEND: Appended the line. New size of the log: %d bytes.\n", newSize);
-    // @close log_mutex_pre(log, log->mutex);
-    //@close logs(log);
+    //@close [l]logs(log, depth);
   }
-  //@ leak logs(log);
+  //@ leak [l]logs(log, depth);
 }
 
 bool parse_string_buffer_as_decimal(struct string_buffer *buffer, int *intValue)
@@ -246,23 +206,21 @@ int min(int x, int y)
 #endif
 
 void list_log(struct log *log, struct socket *socket, struct string_buffer *line)
-/*@ requires [?l]logs(log) &*& socket_input_stream(socket) &*& 
-   socket_output_stream(socket) &*& string_buffer(line, _);
+/*@ requires log!=0 &*& socket_input_stream(socket) &*& 
+   socket_output_stream(socket) &*& string_buffer(line, _) &*& [?l]logs(log, ?depth);
 @*/
-//@ ensures true; //[l]logs_pre(log,next); //todo
+//@ ensures true; //todo ?
 {
   int offset;
   int maxNbBytes;
   
-  //@ open [?p]logs(log);
-  // @ open [?m]log_mutex_pre(log,?iets);
+  //@ open [l]logs(log, depth);
   mutex_acquire(log->mutex);
+  //@ open log_mal_pre(log)(); 
   int logSize = log->size;
-
+  //@ close log_mal_pre(log)();
   mutex_release(log->mutex);
-  // @ close [m]log_mutex_pre(log,iets);
-  //@ close [p]logs(log);
-
+  //@ close [l]logs(log, depth);
 
   printf("LIST: Current size of the log: %d bytes.\n", logSize);
 
@@ -296,9 +254,9 @@ void list_log(struct log *log, struct socket *socket, struct string_buffer *line
   printf("LIST: Transferring %d bytes (= the minimum of %d (the log size %d - offset %d) and the specified maximum number of bytes to transfer %d)...\n", nbBytesToRead, logSize - offset, logSize, offset, maxNbBytes);
 
   printf("LIST: Opening the log...\n");
-  //@ open [?g]logs(log);
+  //@ open [l]logs(log, depth);
   FILE *f = fopen(log->name, "rb");
-  //@ close [g]logs(log);
+  //@ close [l]logs(log,depth);
   if (f == 0) {
     printf("LIST: An error occurred while opening the log file. Terminating the connection...\n");
     goto clean_up;
@@ -328,28 +286,28 @@ void list_log(struct log *log, struct socket *socket, struct string_buffer *line
 clean_up:
   socket_close(socket);
   string_buffer_dispose(line);
-  //@ leak [l]logs(log);
+  //@ leak [l]logs(log, depth);
 }
 
 void follow_log(struct log *log, struct socket *socket, struct string_buffer *line)
-/*@ requires logs(log) &*& socket_input_stream(socket) 
-      &*& socket_output_stream(socket) &*& string_buffer(line, _);
+/*@ requires socket_input_stream(socket) &*& [?l]logs(log, ?depth)
+      &*& log!=0 &*& socket_output_stream(socket) &*& string_buffer(line, _);
 @*/
 //@ ensures true;
-{
-  //@ open logs(log);
-  // @ open log_mutex_pre(log,_);
+{  
+  //@ open [l]logs(log, depth);
   mutex_acquire(log->mutex);
+  //@ open log_mal_pre(log)();
   int logSize = log->size;
+  //@ close log_mal_pre(log)();
   mutex_release(log->mutex);
-  // @ close logs(log);
+  //@ close [l]logs(log, depth);
   printf("FOLLOW: Current size of the log file: %d bytes.\n", logSize);
 
   printf("FOLLOW: Waiting to read the offset...\n");
   if (socket_read_line(socket, line)) {
     printf("FOLLOW: An error occurred while reading the offset. Terminating the connection...\n");
-    //@ close logs(log);
-    //@ leak logs(log);
+    //@ leak [l]logs(log, depth);
     goto clean_up;
   }
 
@@ -358,41 +316,42 @@ void follow_log(struct log *log, struct socket *socket, struct string_buffer *li
     int offsetVar;
     if (!parse_string_buffer_as_decimal(line, &offsetVar)) {
       printf("FOLLOW: The offset is not a valid decimal integer. Terminating the connection...\n");
-      //@ close logs(log);
-      //@ leak logs(log);
+      //@ leak [l]logs(log, depth);
       goto clean_up;
     }
     offset = offsetVar;
   }
   if (offset > logSize) {
     printf("FOLLOW: The offset is greater than the current log size. Terminating the connection...\n");
-    //@ close logs(log);
-    //@ leak logs(log);
+    //@ leak [l]logs(log, depth);
     goto clean_up;
   }
-  // @ open logs(log);
+  //@ open [l]logs(log, depth);
   FILE *f = fopen(log->name, "rb");
-  // @close logs(log);
+  //@close [l]logs(log, depth);
   if (f == 0) {
     printf("FOLLOW: Failed to open the log. Terminating the connection...\n");
-    //@ close logs(log);
-    //@ leak logs(log);
+    //@ leak [l]logs(log, depth);
     goto clean_up;
   }
 
   fseek(f, offset, SEEK_SET);
   char buffer[1000];
   for (;;)
-  /*@ invariant log->mutex |-> ?muttex &*& [?fmu]mutex(muttex,_)  &*& chars(buffer, 1000, _) &*& file(f) &*& logSize >= offset &*& offset >= 0 
-        &*& socket_output_stream(socket) &*& log->size |-> ?size &*& log->append_cond |-> ?append_cond;
+  /*@ invariant chars(buffer, 1000, _) &*& file(f) &*& logSize >= offset &*& offset >= 0 
+        &*& socket_output_stream(socket) &*& [l]logs(log, depth);
   @*/
   {
     if (offset == logSize) {
+      //@ open [l]logs(log, depth);
       mutex_acquire(log->mutex);
+      //@ open log_mal_pre(log)();
+  
       //correct
       //@ assert mutex_held(?mutex, _, _, ?fm);
       for (;;)
-      //@ invariant log->mutex |-> muttex &*& log->size |-> size &*&  log->append_cond |-> append_cond;
+      /*@ invariant log_size(log,?size) &*& mutex_held(mutex, _, _, fm);//mutex_held(mutex, ?size, _, fm);
+      @*/;
       {
         logSize = log->size;
         if (offset < logSize)
@@ -400,22 +359,22 @@ void follow_log(struct log *log, struct socket *socket, struct string_buffer *li
         printf("FOLLOW: Reached the end of the log. Waiting for new entries to be appended...\n");
         mutex_cond_wait(log->append_cond, log->mutex);
       }
+      //@ close log_mal_pre(log)();
       mutex_release(log->mutex);
+      //@ close logs(log, depth);
+      
       //correct
       //@ leak [fm]mutex(mutex, _);
       
     }
-    
+    // @ leak [fmu]mutex(muttex, mCond);
 
-    ///@ produce_limits(logSize);
-    ///@ produce_limits(offset);
     int nbBytesToReadNow = min(logSize - offset, 1000);
     printf("FOLLOW: Trying to read %d bytes...\n", nbBytesToReadNow);
     int nbBytesRead = fread(buffer, 1, nbBytesToReadNow, f);
     printf("FOLLOW: Read %d bytes.\n", nbBytesRead);
     if (nbBytesRead == 0) {
       printf("FOLLOW: Failed to read any bytes. Terminating the connection...\n");
-      
       break;
     }
     
@@ -424,23 +383,16 @@ void follow_log(struct log *log, struct socket *socket, struct string_buffer *li
     offset += nbBytesRead;
   }
   
-  //@ leak log_append_cond(log, _);
-  //@ leak log_mutex(log, ?mutek);
-  //@ leak log_name(log,?namee);
-  //@ leak log_next(log, ?nex);
-  //@ leak log_size(log,_);
-  //@ leak logs(nex);
-  //@ leak string(namee,_);  
-  //@ leak mutex_cond(_,_);
   fclose(f);
-
+  //@ leak [l]logs(log, depth);
 clean_up:
   socket_close(socket);
   string_buffer_dispose(line);
+ 
 }
 
 void handle_connection(struct connection *connection)//@ : thread_run
-//@ requires thread_run_data(handle_connection)(connection) ;
+//@ requires thread_run_data(handle_connection)(connection);
 //@ ensures true;
 {
   //@ open thread_run_data(handle_connection)(connection);
@@ -455,9 +407,7 @@ void handle_connection(struct connection *connection)//@ : thread_run
     printf("Error while reading the log filename. Terminating the connection...\n");
     socket_close(socket);
     string_buffer_dispose(line);
-    // @ leak logs_pre(logs,_);
-    //@ leak log_name(logs, _);
-    //@leak logs(logs);
+    //@leak [_]logs(logs, ?depth);
     return;
   }
   
@@ -465,40 +415,34 @@ void handle_connection(struct connection *connection)//@ : thread_run
   printf("Received log filename '%s'.\n", logName);
   free(logName);
 
-  // leak string_buffer(line,_);
   struct log *log = lookup_log(logs, line);
-
+  
   if (log == 0) {
     socket_write_string(socket, "No such log\n");
     printf("No such log. Terminating the connection...\n");
     socket_close(socket);
     string_buffer_dispose(line);
-    //@ leak logs(_);
-    //@leak log_name(logs,_);
+    //@ leak [_]logs(log, ?depth);
     return;
   } else {
     socket_write_string(socket, "OK\n");
   }
 
+  
   printf("Waiting to receive the command...\n");
 
   if (socket_read_line(socket, line)) {
     printf("Error while reading the command. Terminating the connection...\n");
     socket_close(socket);
     string_buffer_dispose(line);
-    //@ leak logs(_);
-    //@leak log_name(logs,_);
+    //@ leak [_]logs(log, ?depth);
     return;
   }
   
-  ///@ open logs_pre(?lg,?test2);
-  // @ assume 
   if (string_buffer_equals_string(line, "APPEND"))
-    // test
     append_to_log(log, socket, line);
   else if (string_buffer_equals_string(line, "LIST"))
     list_log(log, socket, line);
-    // leak logs_pre(log,_);
   else if (string_buffer_equals_string(line, "FOLLOW"))
     follow_log(log, socket, line);
   else {
@@ -506,24 +450,9 @@ void handle_connection(struct connection *connection)//@ : thread_run
     printf("No such command. Terminating the connection...\n");
     socket_close(socket);
     string_buffer_dispose(line);
+    //@ leak [_]logs(log, _);
   }
-  // @ leak logs(log);
-  //@ leak log_name(_,_);
-  
-  ///@ leak socket_input_stream(?sock);
-  ///@ leak socket_output_stream(sock);
-  
 }
-
-
-/*@
-predicate_family_instance thread_run_data(handle_connection)(struct connection *conn) =
-  conn->logs |-> ?logs &*& logs->name |-> _ &*& logs(logs) &*& conn->socket |-> ?sock &*& malloc_block_connection(conn) &*& 
-  socket_input_stream(sock) &*& socket_output_stream(sock);//&*& logs==0 ? logs_pre(0, _) : logs_pre(logs,_);
-  // &*& 
-  //&*&
-  //[1/2]counter->mutex |-> ?mutex &*& [1/3]mutex(mutex, counter(counter));
-@*/
 
 int main(int argc, char **argv)
 //corect
@@ -532,6 +461,8 @@ int main(int argc, char **argv)
 {
   ///@ assume (1 == argc); //todo rm
   struct log *logs = 0;
+  //@ close logs(logs, 0);
+  
   //correct
   //@ open argv(argv, argc, _);
   if (argc > 0) {
@@ -540,7 +471,9 @@ int main(int argc, char **argv)
     argv++;
     argc--;
     for (; argc > 0; argc--, argv++)
-    //@ invariant [_]argv(argv, argc, _) ;//&*& pointer_limits(argv); // TODO: Extend this invariant.
+    /*@ invariant [_]argv(argv, argc, _) &*& logs(logs, ?depth);
+       // TODO: Extend this invariant.
+    @*/
     {
       char *name = *argv;
       struct log *newLog = malloc(sizeof(struct log));
@@ -549,6 +482,7 @@ int main(int argc, char **argv)
       newLog->name = name;
       int logSize = get_file_size(name);
       newLog->size = logSize;
+      
       //@ close log_mal_pre(newLog)(); 
       //@ close create_mutex_ghost_arg(log_mal_pre(newLog));
       struct mutex *mutex = create_mutex();
@@ -562,18 +496,20 @@ int main(int argc, char **argv)
       printf("Added log '%s' (current size: %d bytes)\n", name, logSize);
       //correct
       //@ pointer_limits(argv);
-      // prob close log
+      
+      //@ close logs(newLog, depth + 1);
     }
   }
 
   struct server_socket *serverSocket = create_server_socket(1234);
   if (serverSocket == 0) {
     printf("Could not create server socket at port 1234. Terminating the program...\n");
+    //@ leak [_]logs(logs, _);
     return 1;
   }
 
   for (;;)
-  //@ invariant server_socket(serverSocket);
+  //@ invariant server_socket(serverSocket) &*& logs(logs, _);
   {
     struct socket *socket = server_socket_accept(serverSocket);
     if (socket == 0) {
@@ -584,10 +520,8 @@ int main(int argc, char **argv)
     if (connection == 0) abort();
     connection->logs = logs;
     connection->socket = socket;
-    ///@ open logs_pre(logs,_);
     //@ close thread_run_data(handle_connection)(connection);
     thread_start(handle_connection, connection);
-    ///@ leak thread_run_data(handle_connection)(connection);
-    
+    //@ close logs(0, 0);
   }
 }
