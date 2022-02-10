@@ -508,9 +508,11 @@ int main(int argc, char **argv)
     return 1;
   }
 
+  //@ leak [_]logs(logs,_);
   for (;;)
-  //@ invariant server_socket(serverSocket) &*& logs(logs, _);
+  //@ invariant server_socket(serverSocket) &*& [_]logs(logs, _);
   {
+    //@ leak [_]logs(logs,_);
     struct socket *socket = server_socket_accept(serverSocket);
     if (socket == 0) {
       printf("server_socket_accept failed. Terminating the program.\n");
@@ -522,6 +524,7 @@ int main(int argc, char **argv)
     connection->socket = socket;
     //@ close thread_run_data(handle_connection)(connection);
     thread_start(handle_connection, connection);
-    //@ close logs(0, 0);
+    // @ close logs(logs, 0);
+    // @ leak [_]logs(logs,0);
   }
 }
