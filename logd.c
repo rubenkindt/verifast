@@ -64,8 +64,8 @@ struct connection {
 };
 
 struct log *lookup_log(struct log *logs, struct string_buffer *name)
-//@ requires [?b]string_buffer(name, _) &*& [?l]logs(logs, ?depth) ;
-//@ ensures [b]string_buffer(name, _)   &*& [l]logs(result, _) ;
+//@ requires [?b]string_buffer(name, _) &*& [?l]logs(logs, ?depth);
+//@ ensures [b]string_buffer(name, _)   &*& [l]logs(result, _);
 {
   for (;;)
   //@ invariant [b]string_buffer(name, _) &*& [l]logs(logs,_);
